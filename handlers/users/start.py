@@ -4,7 +4,7 @@ from aiogram import types
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.builtin import CommandStart
 
-from data.config import ADMINS
+from data.config import ADMINS, PROSALE_CHECKOUT
 # ReplyKeyboard
 from keyboards.default.category import keyboard
 from keyboards.default.buy_subcategory import subcategoryBtn
@@ -83,7 +83,7 @@ async def all_message(message: types.Message):
 async def send_and_check_posts(message: types.Message, state: FSMContext):
     post = message.text
     user_link = message.from_user.get_mention(as_html=True)
-
+    logging.info(message)
     async with state.proxy() as data:
         data['user_link'] = user_link
         data['client_id'] = message.chat.id
@@ -112,16 +112,15 @@ async def confirm_posts(call: types.CallbackQuery, state: FSMContext):
 
     try:
         if call_data == 'yes':
-            for admin_id in ADMINS:
-                try:
-                    await bot.send_message(chat_id=admin_id, text=f"<b>Sotuvchi: {user_link}</b>")
-                    await bot.send_message(chat_id=admin_id, text=f"{post}", reply_markup=post_confirm_button)
-                except Exception as e:
-                    logging.error('Client dan Adminga post yuborishda xatolik bo`ldi. ')
-                finally:
-                    await call.message.reply('Xabar adminga yuborildi!')
+            try:
+                await bot.send_message(chat_id=PROSALE_CHECKOUT, text=f"<b>Sotuvchi: {user_link}</b>")
+                await bot.send_message(chat_id=PROSALE_CHECKOUT, text=f"{post}", reply_markup=post_confirm_button)
+            except Exception as e:
+                logging.error(f'Client dan Adminga post yuborishda xatolik bo`ldi. {e}')
+            finally:
+                await call.message.edit_text('Xabar adminga yuborildi!')
         elif call_data == 'no':
-            await call.message.reply('Sizning postigiz bekor qilindi!')
+            await call.message.edit_text('Sizning postigiz bekor qilindi!')
     except Exception as e:
         logging.info(e)
     await state.finish()
@@ -137,14 +136,17 @@ async def admin_confirm_post(call: types.CallbackQuery, state: FSMContext):
 
     if call.data == 'yes':
         try:
-            from data.config import CHANNEL_ID
-            await post.forward(chat_id=CHANNEL_ID)  # forward
-            await bot.send_message(chat_id=CLIENT_ID['client_id'],
-                                   text='Sizning Tavaringiz Pro Sale Kanaliga yuklandi!')
+            from data.config import CHANNELS
+            for channel in CHANNELS:
+                await post.forward(chat_id=channel)  # forward
+                await bot.send_message(chat_id=CLIENT_ID['client_id'],
+                                       text='Mahsulot: 👉 <a href="https://t.me/prosale_uz"><b>Pro Sale</b></a> kanaliga joylandi!')
         except Exception as e:
             logging.info(e)
+            await post.answer(text=f'Resell kanaliga yuklashda xatolik yuz berdi: {e}')
         finally:
-            await post.answer(text='Resell kanaliga joylandi')
+            await post.reply('Mahsulot: 👉<a href="https://t.me/prosale_uz"><b>Pro Sale</b></a> kanaliga joylandi!')
+
     elif call.data == 'no':
         await post.answer(text='Bekor qilindi!')
         try:
